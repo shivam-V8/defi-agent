@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {PolicyConfig} from "./PolicyConfig.sol";
 import {ChainConfig} from "./ChainConfig.sol";
+import {PermitAdapter} from "./PermitAdapter.sol";
 import {IERC20} from "forge-std/interfaces/IERC20.sol";
 
 /**
@@ -38,9 +39,6 @@ contract AgentExecutor {
     // State variables
     PolicyConfig public immutable policyConfig;
     address public immutable owner;
-    
-    // Permit2 contract address (mainnet: 0x000000000022D473030F116dDEE9F6B43aC78BA3)
-    address public constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
     
     // Router approvals tracking (for cleanup)
     mapping(address => mapping(address => uint256)) public routerApprovals; // token => router => amount
@@ -208,24 +206,30 @@ contract AgentExecutor {
         bytes calldata swapCalldata,
         bytes calldata permit2Data
     ) internal returns (uint256 amountOut) {
-        // TODO: Implement Permit2 integration
-        // This is a placeholder that simulates the swap execution
+        // Parse Permit2 data
+        PermitAdapter.Permit2Data memory permit = PermitAdapter.parsePermit2Data(permit2Data);
         
-        // For now, we'll simulate the swap by checking token balances
-        // In a real implementation, this would:
-        // 1. Verify Permit2 signature
-        // 2. Transfer tokens from user to this contract via Permit2
-        // 3. Grant temporary approval to router
-        // 4. Execute router swap
-        // 5. Reset approval
-        // 6. Transfer output tokens to user
+        // Verify and execute Permit2 transfer
+        PermitAdapter.verifyAndExecutePermit2(permit, msg.sender, address(this), amountIn);
+        
+        // Get policy parameters for approval multiplier
+        (, , , , uint256 approvalMultiplier) = policyConfig.getPolicyParameters();
+        
+        // Calculate approval amount with multiplier
+        uint256 approvalAmount = PermitAdapter.calculateApprovalWithMultiplier(amountIn, approvalMultiplier);
+        
+        // Execute swap with proper allowance management
+        bool success = PermitAdapter.executeSwapWithAllowanceManagement(
+            tokenIn,
+            router,
+            approvalAmount,
+            swapCalldata
+        );
+        
+        require(success, "AgentExecutor: swap execution failed");
         
         // Simulate amountOut (in real implementation, this would come from the swap)
         amountOut = minReceived; // For testing purposes
-        
-        // Emit approval events for transparency
-        emit ApprovalGranted(tokenIn, router, amountIn);
-        emit ApprovalReset(tokenIn, router);
         
         return amountOut;
     }
@@ -242,25 +246,33 @@ contract AgentExecutor {
         bytes calldata swapCalldata,
         bytes calldata permit2612Data
     ) internal returns (uint256 amountOut) {
-        // TODO: Implement EIP-2612 permit integration
-        // This is a placeholder that simulates the swap execution
+        // Parse EIP-2612 permit data
+        PermitAdapter.Permit2612Data memory permit = PermitAdapter.parsePermit2612Data(permit2612Data);
         
-        // For now, we'll simulate the swap by checking token balances
-        // In a real implementation, this would:
-        // 1. Verify EIP-2612 permit signature
-        // 2. Call permit() on token contract
-        // 3. Transfer tokens from user to this contract
-        // 4. Grant temporary approval to router
-        // 5. Execute router swap
-        // 6. Reset approval
-        // 7. Transfer output tokens to user
+        // Verify and execute EIP-2612 permit
+        PermitAdapter.verifyAndExecutePermit2612(permit, tokenIn);
+        
+        // Transfer tokens from user to this contract
+        IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
+        
+        // Get policy parameters for approval multiplier
+        (, , , , uint256 approvalMultiplier) = policyConfig.getPolicyParameters();
+        
+        // Calculate approval amount with multiplier
+        uint256 approvalAmount = PermitAdapter.calculateApprovalWithMultiplier(amountIn, approvalMultiplier);
+        
+        // Execute swap with proper allowance management
+        bool success = PermitAdapter.executeSwapWithAllowanceManagement(
+            tokenIn,
+            router,
+            approvalAmount,
+            swapCalldata
+        );
+        
+        require(success, "AgentExecutor: swap execution failed");
         
         // Simulate amountOut (in real implementation, this would come from the swap)
         amountOut = minReceived; // For testing purposes
-        
-        // Emit approval events for transparency
-        emit ApprovalGranted(tokenIn, router, amountIn);
-        emit ApprovalReset(tokenIn, router);
         
         return amountOut;
     }
@@ -274,10 +286,8 @@ contract AgentExecutor {
         require(token != address(0), "AgentExecutor: zero token");
         require(router != address(0), "AgentExecutor: zero router");
         
-        // Reset approval to zero
-        IERC20(token).approve(router, 0);
-        
-        emit ApprovalReset(token, router);
+        // Use PermitAdapter for safe allowance reset
+        PermitAdapter.resetAllowanceToZero(token, router);
     }
 
     /**
@@ -287,7 +297,7 @@ contract AgentExecutor {
      * @return amount Current approval amount
      */
     function getApprovalAmount(address token, address router) external view returns (uint256 amount) {
-        return IERC20(token).allowance(address(this), router);
+        return PermitAdapter.getCurrentAllowance(token, router);
     }
 
     /**
