@@ -1,0 +1,37 @@
+{
+  "name": "ai-defi-agent",
+  "private": true,
+  "packageManager": "npm@10.0.0",
+  "workspaces": ["apps/*", "packages/*", "contracts"],
+  "scripts": {
+    "build": "turbo build",
+    "dev:web": "npm run dev --workspace=web",
+    "dev:api": "npm run dev --workspace=api",
+    "dev:worker": "npm run dev --workspace=worker",
+    "lint": "turbo lint",
+    "lint:fix": "turbo lint:fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "turbo test",
+    "typecheck": "turbo typecheck",
+    "prepare": "husky install"
+  },
+  "devDependencies": {
+    "turbo": "latest",
+    "typescript": "^5.5.0",
+    "eslint": "^9.0.0",
+    "@eslint/js": "^9.0.0",
+    "prettier": "^3.0.0",
+    "husky": "^9.0.0",
+    "lint-staged": "^15.0.0"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml}": [
+      "prettier --write"
+    ]
+  }
+}
