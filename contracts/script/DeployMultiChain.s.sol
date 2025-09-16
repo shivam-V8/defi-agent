@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {Script, console} from "forge-std/Script.sol";
 import {DeFiAgent} from "../src/DeFiAgent.sol";
 import {PolicyConfig} from "../src/PolicyConfig.sol";
+import {AgentExecutor} from "../src/AgentExecutor.sol";
 import {ChainConfig} from "../src/ChainConfig.sol";
 
 /**
@@ -60,6 +61,9 @@ contract DeployMultiChain is Script {
             // Deploy DeFiAgent contract with PolicyConfig address
             DeFiAgent defiAgent = new DeFiAgent(address(policyConfig));
             
+            // Deploy AgentExecutor contract with PolicyConfig address
+            AgentExecutor agentExecutor = new AgentExecutor(address(policyConfig));
+            
             vm.stopBroadcast();
 
             deployments[i] = DeploymentInfo({
@@ -71,7 +75,9 @@ contract DeployMultiChain is Script {
 
             console.log("PolicyConfig deployed to:", address(policyConfig));
             console.log("DeFiAgent deployed to:", address(defiAgent));
+            console.log("AgentExecutor deployed to:", address(agentExecutor));
             console.log("DeFiAgent owner:", defiAgent.owner());
+            console.log("AgentExecutor owner:", agentExecutor.owner());
         }
 
         // Print deployment summary
