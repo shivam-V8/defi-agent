@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {ChainConfig} from "./ChainConfig.sol";
+import {PolicyConfig} from "./PolicyConfig.sol";
 
 /**
  * @title DeFiAgent
@@ -33,14 +34,9 @@ contract DeFiAgent {
     );
 
     // State variables
-    mapping(uint256 => bool) public supportedChains;
-    mapping(uint256 => mapping(uint256 => address)) public routerAddresses;
-    
+    PolicyConfig public policyConfig;
     address public owner;
     uint256 public maxNotionalPerTxUSD = 1000 * 1e18; // $1000 in wei
-    uint256 public maxSlippageBps = 50; // 0.5%
-    uint256 public maxPriceImpactBps = 150; // 1.5%
-    uint256 public minPoolLiquidityUSD = 250000 * 1e18; // $250k in wei
 
     // Modifiers
     modifier onlyOwner() {
@@ -49,36 +45,16 @@ contract DeFiAgent {
     }
 
     modifier onlySupportedChain() {
-        require(ChainConfig.isSupportedChain(block.chainid), "DeFiAgent: unsupported chain");
+        require(policyConfig.isChainSupported(block.chainid), "DeFiAgent: unsupported chain");
         _;
     }
 
-    constructor() {
+    constructor(address _policyConfig) {
+        require(_policyConfig != address(0), "DeFiAgent: zero address");
         owner = msg.sender;
-        
-        // Initialize supported chains
-        supportedChains[ChainConfig.ETHEREUM_CHAIN_ID] = true;
-        supportedChains[ChainConfig.ARBITRUM_CHAIN_ID] = true;
-        supportedChains[ChainConfig.OPTIMISM_CHAIN_ID] = true;
-        
-        // Initialize router addresses
-        _initializeRouters();
+        policyConfig = PolicyConfig(_policyConfig);
     }
 
-    /**
-     * @dev Initialize router addresses for each chain
-     */
-    function _initializeRouters() internal {
-        // Uniswap routers (routerType = 0)
-        routerAddresses[ChainConfig.ETHEREUM_CHAIN_ID][0] = ChainConfig.UNISWAP_V3_ROUTER_ETHEREUM;
-        routerAddresses[ChainConfig.ARBITRUM_CHAIN_ID][0] = ChainConfig.UNISWAP_V3_ROUTER_ARBITRUM;
-        routerAddresses[ChainConfig.OPTIMISM_CHAIN_ID][0] = ChainConfig.UNISWAP_V3_ROUTER_OPTIMISM;
-        
-        // 1inch routers (routerType = 1)
-        routerAddresses[ChainConfig.ETHEREUM_CHAIN_ID][1] = ChainConfig.ONEINCH_ROUTER_ETHEREUM;
-        routerAddresses[ChainConfig.ARBITRUM_CHAIN_ID][1] = ChainConfig.ONEINCH_ROUTER_ARBITRUM;
-        routerAddresses[ChainConfig.OPTIMISM_CHAIN_ID][1] = ChainConfig.ONEINCH_ROUTER_OPTIMISM;
-    }
 
     /**
      * @dev Evaluate a quote against policy constraints
@@ -104,6 +80,14 @@ contract DeFiAgent {
         string[] memory tempViolations = new string[](5);
         uint256 violationCount = 0;
 
+        // Get policy parameters from PolicyConfig
+        (
+            uint256 maxSlippageBps,
+            uint256 maxPriceImpactBps,
+            uint256 minLiquidityUSD,
+            ,
+        ) = policyConfig.getPolicyParameters();
+
         // Check notional size
         if (notionalInUSD > maxNotionalPerTxUSD) {
             tempViolations[violationCount] = "NotionalTooLarge";
@@ -117,7 +101,7 @@ contract DeFiAgent {
         }
 
         // Check pool liquidity
-        if (poolLiquidityUSD < minPoolLiquidityUSD) {
+        if (poolLiquidityUSD < minLiquidityUSD) {
             tempViolations[violationCount] = "LiquidityTooLow";
             violationCount++;
         }
@@ -168,8 +152,16 @@ contract DeFiAgent {
         uint256 routerType,
         bytes calldata swapCalldata
     ) external onlySupportedChain {
-        address router = routerAddresses[block.chainid][routerType];
-        require(router != address(0), "DeFiAgent: unsupported router");
+        // Get allowed routers from PolicyConfig
+        address[] memory allowedRouters = policyConfig.getAllowedRouters(block.chainid, routerType);
+        require(allowedRouters.length > 0, "DeFiAgent: no allowed routers");
+        
+        // For now, use the first allowed router
+        // In the future, this could implement router selection logic
+        address router = allowedRouters[0];
+        
+        // Verify the router is still allowed
+        require(policyConfig.isRouterAllowed(block.chainid, routerType, router), "DeFiAgent: router not allowed");
 
         // TODO: Implement actual swap execution in future PRs
         // This is a placeholder that emits an event
@@ -186,31 +178,19 @@ contract DeFiAgent {
     }
 
     /**
-     * @dev Update policy parameters (only owner)
+     * @dev Update max notional per transaction (only owner)
+     * @notice Other policy parameters are managed by PolicyConfig contract
      */
-    function updatePolicy(
-        uint256 _maxNotionalPerTxUSD,
-        uint256 _maxSlippageBps,
-        uint256 _maxPriceImpactBps,
-        uint256 _minPoolLiquidityUSD
-    ) external onlyOwner {
+    function updateMaxNotionalPerTxUSD(uint256 _maxNotionalPerTxUSD) external onlyOwner {
         maxNotionalPerTxUSD = _maxNotionalPerTxUSD;
-        maxSlippageBps = _maxSlippageBps;
-        maxPriceImpactBps = _maxPriceImpactBps;
-        minPoolLiquidityUSD = _minPoolLiquidityUSD;
     }
 
     /**
-     * @dev Add or remove supported chain (only owner)
+     * @dev Update PolicyConfig contract address (only owner)
+     * @notice This allows upgrading the policy configuration
      */
-    function setSupportedChain(uint256 chainId, bool supported) external onlyOwner {
-        supportedChains[chainId] = supported;
-    }
-
-    /**
-     * @dev Update router address (only owner)
-     */
-    function setRouterAddress(uint256 chainId, uint256 routerType, address router) external onlyOwner {
-        routerAddresses[chainId][routerType] = router;
+    function updatePolicyConfig(address _policyConfig) external onlyOwner {
+        require(_policyConfig != address(0), "DeFiAgent: zero address");
+        policyConfig = PolicyConfig(_policyConfig);
     }
 }

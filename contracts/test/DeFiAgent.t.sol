@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Test, console} from "forge-std/Test.sol";
 import {DeFiAgent} from "../src/DeFiAgent.sol";
+import {PolicyConfig} from "../src/PolicyConfig.sol";
 import {ChainConfig} from "../src/ChainConfig.sol";
 
 /**
@@ -11,6 +12,7 @@ import {ChainConfig} from "../src/ChainConfig.sol";
  */
 contract DeFiAgentTest is Test {
     DeFiAgent public defiAgent;
+    PolicyConfig public policyConfig;
     address public owner;
     address public user;
 
@@ -32,29 +34,38 @@ contract DeFiAgentTest is Test {
         // Set up test environment to use Ethereum mainnet chain ID
         vm.chainId(ChainConfig.ETHEREUM_CHAIN_ID);
         
-        defiAgent = new DeFiAgent();
+        // Deploy PolicyConfig first
+        policyConfig = new PolicyConfig();
+        
+        // Deploy DeFiAgent with PolicyConfig address
+        defiAgent = new DeFiAgent(address(policyConfig));
         
         // Verify initial state
         assertEq(defiAgent.owner(), owner);
         assertEq(defiAgent.maxNotionalPerTxUSD(), 1000 * 1e18);
-        assertEq(defiAgent.maxSlippageBps(), 50);
-        assertEq(defiAgent.maxPriceImpactBps(), 150);
-        assertEq(defiAgent.minPoolLiquidityUSD(), 250000 * 1e18);
+        assertEq(address(defiAgent.policyConfig()), address(policyConfig));
     }
 
     function testInitialization() public {
-        // Test supported chains
-        assertTrue(defiAgent.supportedChains(ChainConfig.ETHEREUM_CHAIN_ID));
-        assertTrue(defiAgent.supportedChains(ChainConfig.ARBITRUM_CHAIN_ID));
-        assertTrue(defiAgent.supportedChains(ChainConfig.OPTIMISM_CHAIN_ID));
+        // Test PolicyConfig integration
+        assertEq(address(defiAgent.policyConfig()), address(policyConfig));
         
-        // Test router addresses
-        assertNotEq(defiAgent.routerAddresses(ChainConfig.ETHEREUM_CHAIN_ID, 0), address(0));
-        assertNotEq(defiAgent.routerAddresses(ChainConfig.ETHEREUM_CHAIN_ID, 1), address(0));
-        assertNotEq(defiAgent.routerAddresses(ChainConfig.ARBITRUM_CHAIN_ID, 0), address(0));
-        assertNotEq(defiAgent.routerAddresses(ChainConfig.ARBITRUM_CHAIN_ID, 1), address(0));
-        assertNotEq(defiAgent.routerAddresses(ChainConfig.OPTIMISM_CHAIN_ID, 0), address(0));
-        assertNotEq(defiAgent.routerAddresses(ChainConfig.OPTIMISM_CHAIN_ID, 1), address(0));
+        // Test supported chains via PolicyConfig
+        assertTrue(policyConfig.isChainSupported(ChainConfig.ETHEREUM_CHAIN_ID));
+        assertTrue(policyConfig.isChainSupported(ChainConfig.ARBITRUM_CHAIN_ID));
+        assertTrue(policyConfig.isChainSupported(ChainConfig.OPTIMISM_CHAIN_ID));
+        
+        // Test router allowlists via PolicyConfig
+        assertTrue(policyConfig.isRouterAllowed(
+            ChainConfig.ETHEREUM_CHAIN_ID,
+            0,
+            ChainConfig.UNISWAP_V3_ROUTER_ETHEREUM
+        ));
+        assertTrue(policyConfig.isRouterAllowed(
+            ChainConfig.ETHEREUM_CHAIN_ID,
+            1,
+            ChainConfig.ONEINCH_ROUTER_ETHEREUM
+        ));
     }
 
     function testEvaluateQuotePassing() public {
@@ -205,60 +216,57 @@ contract DeFiAgentTest is Test {
         assertEq(violations.length, 5); // All violations
     }
 
-    function testUpdatePolicy() public {
+    function testUpdateMaxNotionalPerTxUSD() public {
         uint256 newMaxNotional = 2000 * 1e18;
-        uint256 newMaxSlippage = 100;
-        uint256 newMaxPriceImpact = 200;
-        uint256 newMinLiquidity = 500000 * 1e18;
 
-        defiAgent.updatePolicy(
-            newMaxNotional,
-            newMaxSlippage,
-            newMaxPriceImpact,
-            newMinLiquidity
-        );
-
+        defiAgent.updateMaxNotionalPerTxUSD(newMaxNotional);
         assertEq(defiAgent.maxNotionalPerTxUSD(), newMaxNotional);
-        assertEq(defiAgent.maxSlippageBps(), newMaxSlippage);
-        assertEq(defiAgent.maxPriceImpactBps(), newMaxPriceImpact);
-        assertEq(defiAgent.minPoolLiquidityUSD(), newMinLiquidity);
     }
 
-    function testUpdatePolicyOnlyOwner() public {
+    function testUpdateMaxNotionalPerTxUSDOnlyOwner() public {
         uint256 newMaxNotional = 2000 * 1e18;
-        uint256 newMaxSlippage = 100;
-        uint256 newMaxPriceImpact = 200;
-        uint256 newMinLiquidity = 500000 * 1e18;
 
         vm.prank(user);
         vm.expectRevert("DeFiAgent: not owner");
-        defiAgent.updatePolicy(
-            newMaxNotional,
-            newMaxSlippage,
-            newMaxPriceImpact,
-            newMinLiquidity
-        );
+        defiAgent.updateMaxNotionalPerTxUSD(newMaxNotional);
     }
 
-    function testSetSupportedChain() public {
-        uint256 newChainId = 999;
+    function testUpdatePolicyConfig() public {
+        // Deploy new PolicyConfig
+        PolicyConfig newPolicyConfig = new PolicyConfig();
         
-        assertFalse(defiAgent.supportedChains(newChainId));
-        
-        defiAgent.setSupportedChain(newChainId, true);
-        assertTrue(defiAgent.supportedChains(newChainId));
-        
-        defiAgent.setSupportedChain(newChainId, false);
-        assertFalse(defiAgent.supportedChains(newChainId));
+        defiAgent.updatePolicyConfig(address(newPolicyConfig));
+        assertEq(address(defiAgent.policyConfig()), address(newPolicyConfig));
     }
 
-    function testSetRouterAddress() public {
-        uint256 chainId = ChainConfig.ETHEREUM_CHAIN_ID;
-        uint256 routerType = 0;
-        address newRouter = makeAddr("newRouter");
+    function testUpdatePolicyConfigOnlyOwner() public {
+        PolicyConfig newPolicyConfig = new PolicyConfig();
         
-        defiAgent.setRouterAddress(chainId, routerType, newRouter);
-        assertEq(defiAgent.routerAddresses(chainId, routerType), newRouter);
+        vm.prank(user);
+        vm.expectRevert("DeFiAgent: not owner");
+        defiAgent.updatePolicyConfig(address(newPolicyConfig));
+    }
+
+    function testUpdatePolicyConfigValidation() public {
+        vm.expectRevert("DeFiAgent: zero address");
+        defiAgent.updatePolicyConfig(address(0));
+    }
+
+    function testPolicyConfigIntegration() public {
+        // Test that DeFiAgent uses PolicyConfig for policy parameters
+        (
+            uint256 maxSlippageBps,
+            uint256 maxPriceImpactBps,
+            uint256 minLiquidityUSD,
+            uint256 ttlSeconds,
+            uint256 approvalMultiplier
+        ) = policyConfig.getPolicyParameters();
+        
+        assertEq(maxSlippageBps, 50);
+        assertEq(maxPriceImpactBps, 150);
+        assertEq(minLiquidityUSD, 250000 * 1e18);
+        assertEq(ttlSeconds, 120);
+        assertEq(approvalMultiplier, 102);
     }
 
     function testExecuteSwapPlaceholder() public {
@@ -274,15 +282,15 @@ contract DeFiAgentTest is Test {
         // Test passes if no revert occurs (placeholder implementation)
     }
 
-    function testExecuteSwapUnsupportedRouter() public {
+    function testExecuteSwapNoAllowedRouters() public {
         address tokenIn = makeAddr("tokenIn");
         address tokenOut = makeAddr("tokenOut");
         uint256 amountIn = 1000 * 1e18;
-        uint256 routerType = 999; // Unsupported router
+        uint256 routerType = 999; // No allowed routers for this type
         bytes memory swapCalldata = "";
 
         vm.prank(user);
-        vm.expectRevert("DeFiAgent: unsupported router");
+        vm.expectRevert("DeFiAgent: no allowed routers");
         defiAgent.executeSwap(tokenIn, tokenOut, amountIn, routerType, swapCalldata);
     }
 }

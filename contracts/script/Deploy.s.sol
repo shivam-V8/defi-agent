@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Script, console} from "forge-std/Script.sol";
 import {DeFiAgent} from "../src/DeFiAgent.sol";
+import {PolicyConfig} from "../src/PolicyConfig.sol";
 import {ChainConfig} from "../src/ChainConfig.sol";
 
 /**
@@ -21,20 +22,38 @@ contract Deploy is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        // Deploy DeFiAgent contract
-        DeFiAgent defiAgent = new DeFiAgent();
-        
+        // Deploy PolicyConfig contract first
+        PolicyConfig policyConfig = new PolicyConfig();
+        console.log("PolicyConfig deployed to:", address(policyConfig));
+
+        // Deploy DeFiAgent contract with PolicyConfig address
+        DeFiAgent defiAgent = new DeFiAgent(address(policyConfig));
         console.log("DeFiAgent deployed to:", address(defiAgent));
 
         vm.stopBroadcast();
 
         // Verify deployment
         console.log("Deployment completed successfully!");
-        console.log("Contract address:", address(defiAgent));
-        console.log("Owner:", defiAgent.owner());
-        console.log("Max notional per tx USD:", defiAgent.maxNotionalPerTxUSD());
-        console.log("Max slippage BPS:", defiAgent.maxSlippageBps());
-        console.log("Max price impact BPS:", defiAgent.maxPriceImpactBps());
-        console.log("Min pool liquidity USD:", defiAgent.minPoolLiquidityUSD());
+        console.log("PolicyConfig address:", address(policyConfig));
+        console.log("DeFiAgent address:", address(defiAgent));
+        console.log("DeFiAgent owner:", defiAgent.owner());
+        console.log("DeFiAgent max notional per tx USD:", defiAgent.maxNotionalPerTxUSD());
+        console.log("PolicyConfig owner:", policyConfig.owner());
+        
+        // Verify policy parameters
+        (
+            uint256 maxSlippageBps,
+            uint256 maxPriceImpactBps,
+            uint256 minLiquidityUSD,
+            uint256 ttlSeconds,
+            uint256 approvalMultiplier
+        ) = policyConfig.getPolicyParameters();
+        
+        console.log("Policy parameters:");
+        console.log("  Max slippage BPS:", maxSlippageBps);
+        console.log("  Max price impact BPS:", maxPriceImpactBps);
+        console.log("  Min liquidity USD:", minLiquidityUSD);
+        console.log("  TTL seconds:", ttlSeconds);
+        console.log("  Approval multiplier:", approvalMultiplier);
     }
 }
