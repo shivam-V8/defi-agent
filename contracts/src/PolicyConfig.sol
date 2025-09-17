@@ -82,16 +82,22 @@ contract PolicyConfig {
      */
     function _initializeDefaultRouters() internal {
         // Ethereum mainnet routers
-        routerAllowlist[ChainConfig.ETHEREUM_CHAIN_ID][0][ChainConfig.UNISWAP_V3_ROUTER_ETHEREUM] = true;
-        routerAllowlist[ChainConfig.ETHEREUM_CHAIN_ID][1][ChainConfig.ONEINCH_ROUTER_ETHEREUM] = true;
+        routerAllowlist[ChainConfig.ETHEREUM_CHAIN_ID][ChainConfig.ROUTER_TYPE_UNISWAP_V3][ChainConfig.UNISWAP_V3_ROUTER_ETHEREUM] = true;
+        routerAllowlist[ChainConfig.ETHEREUM_CHAIN_ID][ChainConfig.ROUTER_TYPE_ONEINCH][ChainConfig.ONEINCH_ROUTER_ETHEREUM] = true;
+        routerAllowlist[ChainConfig.ETHEREUM_CHAIN_ID][ChainConfig.ROUTER_TYPE_SUSHISWAP][ChainConfig.SUSHISWAP_ROUTER_ETHEREUM] = true;
+        routerAllowlist[ChainConfig.ETHEREUM_CHAIN_ID][ChainConfig.ROUTER_TYPE_CURVE][ChainConfig.CURVE_ROUTER_ETHEREUM] = true;
 
         // Arbitrum routers
-        routerAllowlist[ChainConfig.ARBITRUM_CHAIN_ID][0][ChainConfig.UNISWAP_V3_ROUTER_ARBITRUM] = true;
-        routerAllowlist[ChainConfig.ARBITRUM_CHAIN_ID][1][ChainConfig.ONEINCH_ROUTER_ARBITRUM] = true;
+        routerAllowlist[ChainConfig.ARBITRUM_CHAIN_ID][ChainConfig.ROUTER_TYPE_UNISWAP_V3][ChainConfig.UNISWAP_V3_ROUTER_ARBITRUM] = true;
+        routerAllowlist[ChainConfig.ARBITRUM_CHAIN_ID][ChainConfig.ROUTER_TYPE_ONEINCH][ChainConfig.ONEINCH_ROUTER_ARBITRUM] = true;
+        routerAllowlist[ChainConfig.ARBITRUM_CHAIN_ID][ChainConfig.ROUTER_TYPE_SUSHISWAP][ChainConfig.SUSHISWAP_ROUTER_ARBITRUM] = true;
+        // Curve not deployed on Arbitrum
 
         // Optimism routers
-        routerAllowlist[ChainConfig.OPTIMISM_CHAIN_ID][0][ChainConfig.UNISWAP_V3_ROUTER_OPTIMISM] = true;
-        routerAllowlist[ChainConfig.OPTIMISM_CHAIN_ID][1][ChainConfig.ONEINCH_ROUTER_OPTIMISM] = true;
+        routerAllowlist[ChainConfig.OPTIMISM_CHAIN_ID][ChainConfig.ROUTER_TYPE_UNISWAP_V3][ChainConfig.UNISWAP_V3_ROUTER_OPTIMISM] = true;
+        routerAllowlist[ChainConfig.OPTIMISM_CHAIN_ID][ChainConfig.ROUTER_TYPE_ONEINCH][ChainConfig.ONEINCH_ROUTER_OPTIMISM] = true;
+        routerAllowlist[ChainConfig.OPTIMISM_CHAIN_ID][ChainConfig.ROUTER_TYPE_SUSHISWAP][ChainConfig.SUSHISWAP_ROUTER_OPTIMISM] = true;
+        // Curve not deployed on Optimism
     }
 
     // ============ READ-ONLY GETTERS ============
@@ -155,29 +161,43 @@ contract PolicyConfig {
         
         // For now, return the known default routers
         if (chainId == ChainConfig.ETHEREUM_CHAIN_ID) {
-            if (routerType == 0) {
+            if (routerType == ChainConfig.ROUTER_TYPE_UNISWAP_V3) {
                 allowedRouters = new address[](1);
                 allowedRouters[0] = ChainConfig.UNISWAP_V3_ROUTER_ETHEREUM;
-            } else if (routerType == 1) {
+            } else if (routerType == ChainConfig.ROUTER_TYPE_ONEINCH) {
                 allowedRouters = new address[](1);
                 allowedRouters[0] = ChainConfig.ONEINCH_ROUTER_ETHEREUM;
+            } else if (routerType == ChainConfig.ROUTER_TYPE_SUSHISWAP) {
+                allowedRouters = new address[](1);
+                allowedRouters[0] = ChainConfig.SUSHISWAP_ROUTER_ETHEREUM;
+            } else if (routerType == ChainConfig.ROUTER_TYPE_CURVE) {
+                allowedRouters = new address[](1);
+                allowedRouters[0] = ChainConfig.CURVE_ROUTER_ETHEREUM;
             }
         } else if (chainId == ChainConfig.ARBITRUM_CHAIN_ID) {
-            if (routerType == 0) {
+            if (routerType == ChainConfig.ROUTER_TYPE_UNISWAP_V3) {
                 allowedRouters = new address[](1);
                 allowedRouters[0] = ChainConfig.UNISWAP_V3_ROUTER_ARBITRUM;
-            } else if (routerType == 1) {
+            } else if (routerType == ChainConfig.ROUTER_TYPE_ONEINCH) {
                 allowedRouters = new address[](1);
                 allowedRouters[0] = ChainConfig.ONEINCH_ROUTER_ARBITRUM;
+            } else if (routerType == ChainConfig.ROUTER_TYPE_SUSHISWAP) {
+                allowedRouters = new address[](1);
+                allowedRouters[0] = ChainConfig.SUSHISWAP_ROUTER_ARBITRUM;
             }
+            // Curve not deployed on Arbitrum
         } else if (chainId == ChainConfig.OPTIMISM_CHAIN_ID) {
-            if (routerType == 0) {
+            if (routerType == ChainConfig.ROUTER_TYPE_UNISWAP_V3) {
                 allowedRouters = new address[](1);
                 allowedRouters[0] = ChainConfig.UNISWAP_V3_ROUTER_OPTIMISM;
-            } else if (routerType == 1) {
+            } else if (routerType == ChainConfig.ROUTER_TYPE_ONEINCH) {
                 allowedRouters = new address[](1);
                 allowedRouters[0] = ChainConfig.ONEINCH_ROUTER_OPTIMISM;
+            } else if (routerType == ChainConfig.ROUTER_TYPE_SUSHISWAP) {
+                allowedRouters = new address[](1);
+                allowedRouters[0] = ChainConfig.SUSHISWAP_ROUTER_OPTIMISM;
             }
+            // Curve not deployed on Optimism
         }
         
         return allowedRouters;

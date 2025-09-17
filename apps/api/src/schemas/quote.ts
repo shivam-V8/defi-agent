@@ -7,13 +7,12 @@ export const CHAIN_IDS = {
   OPTIMISM: 10,
 } as const;
 
-// Router types
+// Router types (matching PolicyConfig contract)
 export const ROUTER_TYPES = {
-  UNISWAP_V2: 'UNISWAP_V2',
   UNISWAP_V3: 'UNISWAP_V3',
+  ONEINCH: 'ONEINCH',
   SUSHISWAP: 'SUSHISWAP',
   CURVE: 'CURVE',
-  BALANCER: 'BALANCER',
 } as const;
 
 // Quote request schema
