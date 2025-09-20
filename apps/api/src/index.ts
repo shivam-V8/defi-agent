@@ -1,7 +1,19 @@
 import express from 'express';
-import helmet from 'helmet';
-import cors from 'cors';
 import pino from 'pino';
+
+// Import security middleware
+import {
+  helmetConfig,
+  corsConfig,
+  apiRateLimit,
+  quoteRateLimit,
+  requestTimeout,
+  sanitizeInput,
+  errorNormalizer,
+  requestLogger,
+  securityHeaders,
+  requestSizeLimit,
+} from './middleware/security.js';
 
 // Import routes
 import quoteRoutes from './routes/quote.js';
@@ -20,31 +32,30 @@ const logger = pino({
 
 const app = express();
 
-// Security middleware
-app.use(helmet({
-  contentSecurityPolicy: false, // Disable CSP for API
-}));
+// Trust proxy for accurate IP addresses
+app.set('trust proxy', 1);
 
-// CORS configuration
-app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
-  credentials: true,
-}));
+// Security middleware (order matters!)
+app.use(helmetConfig);
+app.use(corsConfig);
+app.use(securityHeaders);
+app.use(requestSizeLimit('10mb'));
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Request logging middleware
-app.use((req, res, next) => {
-  logger.info({
-    method: req.method,
-    url: req.url,
-    userAgent: req.get('User-Agent'),
-    ip: req.ip,
-  }, 'Incoming request');
-  next();
-});
+// Input sanitization
+app.use(sanitizeInput);
+
+// Request logging
+app.use(requestLogger);
+
+// Rate limiting
+app.use(apiRateLimit);
+
+// Request timeout
+app.use(requestTimeout(30000)); // 30 second timeout
 
 // Health check endpoint
 app.get('/healthz', (_req, res) => {
@@ -55,8 +66,8 @@ app.get('/healthz', (_req, res) => {
   });
 });
 
-// API routes
-app.use('/v1/quote', quoteRoutes);
+// API routes with specific rate limiting
+app.use('/v1/quote', quoteRateLimit, quoteRoutes);
 app.use('/v1/simulate', simulationRoutes);
 app.use('/v1/tx-params', txParamsRoutes);
 
@@ -69,19 +80,7 @@ app.use('*', (req, res) => {
 });
 
 // Error handling middleware
-app.use((error: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  logger.error({
-    error: error.message,
-    stack: error.stack,
-    url: req.url,
-    method: req.method,
-  }, 'Unhandled error');
-
-  res.status(500).json({
-    error: 'Internal server error',
-    message: 'An unexpected error occurred',
-  });
-});
+app.use(errorNormalizer);
 
 const PORT = parseInt(process.env.PORT || '4000');
 const HOST = process.env.HOST || '0.0.0.0';

@@ -1,4 +1,6 @@
 import { QuoteRequest, QuoteResponse, ROUTER_TYPES, CHAIN_IDS } from '../schemas/quote.js';
+import { QuoteAggregator } from './quoteAggregator.js';
+import { QuoteFetcherConfig } from '../types/quote.js';
 
 // Router addresses matching the deployed PolicyConfig contract
 const ROUTER_ADDRESSES = {
@@ -30,6 +32,7 @@ const TOKEN_METADATA = {
 
 export class QuoteService {
   private static instance: QuoteService;
+  private aggregator: QuoteAggregator;
   
   public static getInstance(): QuoteService {
     if (!QuoteService.instance) {
@@ -38,71 +41,71 @@ export class QuoteService {
     return QuoteService.instance;
   }
 
+  private constructor() {
+    // Initialize quote aggregator with conservative settings
+    const config: QuoteFetcherConfig = {
+      timeout: 5000, // 5 second timeout
+      retries: 2,
+      fallbackEnabled: true,
+      priceBias: 0.02, // 2% conservative price bias
+    };
+    
+    this.aggregator = new QuoteAggregator(config);
+  }
+
   /**
-   * Get the best quote by aggregating from multiple routers
+   * Get the best quote by aggregating from multiple routers with policy evaluation
    */
   async getBestQuote(request: QuoteRequest): Promise<QuoteResponse> {
     const startTime = Date.now();
     
     try {
-      // Get available routers for the chain
-      const availableRouters = ROUTER_ADDRESSES[request.chainId as keyof typeof ROUTER_ADDRESSES] || {};
-      
-      if (Object.keys(availableRouters).length === 0) {
-        throw new Error(`No routers available for chain ${request.chainId}`);
-      }
-
-      // Fetch quotes from all available routers
-      const quotePromises = Object.entries(availableRouters).map(([routerType, routerAddress]) =>
-        this.fetchQuoteFromRouter(request, routerType as keyof typeof ROUTER_TYPES, routerAddress)
-      );
-
-      const results = await Promise.allSettled(quotePromises);
-      
-      const successfulQuotes: any[] = [];
-      const rejectedRoutes: any[] = [];
-
-      results.forEach((result, index) => {
-        const routerType = Object.keys(availableRouters)[index] as keyof typeof ROUTER_TYPES;
-        const routerAddress = Object.values(availableRouters)[index];
-
-        if (result.status === 'fulfilled') {
-          successfulQuotes.push(result.value);
-        } else {
-          rejectedRoutes.push({
-            router: routerAddress,
-            routerType,
-            reason: result.reason?.message || 'Unknown error',
-            errorCode: 'QUOTE_FAILED',
-          });
-        }
+      // Use the quote aggregator to fetch quotes from all available routers
+      const { bestQuote, rejectedQuotes, policyEvaluation } = await this.aggregator.getBestQuote({
+        tokenIn: request.tokenIn,
+        tokenOut: request.tokenOut,
+        amountIn: request.amountIn,
+        chainId: request.chainId,
+        slippageTolerance: request.slippageTolerance,
+        userAddress: request.userAddress, // Add user address for policy evaluation
       });
 
-      if (successfulQuotes.length === 0) {
+      if (!bestQuote) {
         throw new Error('No successful quotes found');
       }
 
-      // Find the best quote (highest expected output)
-      const bestQuote = successfulQuotes.reduce((best, current) => 
-        parseFloat(current.expectedOut) > parseFloat(best.expectedOut) ? current : best
-      );
-
       // Calculate min received based on slippage tolerance
       const slippageMultiplier = (100 - request.slippageTolerance) / 100;
-      const minReceived = (parseFloat(bestQuote.expectedOut) * slippageMultiplier).toString();
+      const minReceived = (parseFloat(bestQuote.amountOut) * slippageMultiplier).toString();
 
       const processingTime = Date.now() - startTime;
 
       return {
         bestRoute: {
-          ...bestQuote,
+          router: bestQuote.router,
+          routerType: bestQuote.routerType as any,
+          tokenIn: bestQuote.tokenIn,
+          tokenOut: bestQuote.tokenOut,
+          amountIn: bestQuote.amountIn,
+          expectedOut: bestQuote.amountOut,
           minReceived,
-          deadline: request.deadline || Math.floor(Date.now() / 1000) + 1200, // 20 minutes default
-          ttl: 120, // 2 minutes TTL
+          priceImpactBps: bestQuote.priceImpactBps,
+          gasEstimate: bestQuote.gasEstimate,
+          gasPrice: bestQuote.gasPrice,
+          deadline: request.deadline || bestQuote.deadline,
+          ttl: bestQuote.ttl,
         },
-        rejectedRoutes,
-        totalRoutes: successfulQuotes.length + rejectedRoutes.length,
+        rejectedRoutes: rejectedQuotes,
+        totalRoutes: rejectedQuotes.length + 1, // +1 for the best quote
         processingTimeMs: processingTime,
+        // Add policy evaluation information
+        policyEvaluation: policyEvaluation ? {
+          passed: policyEvaluation.passed,
+          score: policyEvaluation.score,
+          netUSD: policyEvaluation.netUSD,
+          violations: policyEvaluation.violations,
+          warnings: policyEvaluation.warnings,
+        } : undefined,
       };
 
     } catch (error) {
@@ -111,76 +114,10 @@ export class QuoteService {
   }
 
   /**
-   * Fetch quote from a specific router (mock implementation)
+   * Check health of all quote fetchers
    */
-  private async fetchQuoteFromRouter(
-    request: QuoteRequest,
-    routerType: keyof typeof ROUTER_TYPES,
-    routerAddress: string
-  ): Promise<{
-    router: string;
-    routerType: keyof typeof ROUTER_TYPES;
-    tokenIn: string;
-    tokenOut: string;
-    amountIn: string;
-    expectedOut: string;
-    priceImpactBps: number;
-    gasEstimate: string;
-    gasPrice: string;
-    deadline: number;
-  }> {
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, Math.random() * 200 + 100));
-
-    // Mock quote calculation based on router type
-    const amountInFloat = parseFloat(request.amountIn);
-    let expectedOut: number;
-    let priceImpactBps: number;
-
-    switch (routerType) {
-      case ROUTER_TYPES.UNISWAP_V3:
-        // Simulate Uniswap V3 with better rates
-        expectedOut = amountInFloat * 2000 * (0.98 + Math.random() * 0.04); // 2000x multiplier with 2-6% variation
-        priceImpactBps = Math.floor(Math.random() * 50); // 0-50 bps price impact
-        break;
-      case ROUTER_TYPES.UNISWAP_V2:
-        // Simulate Uniswap V2 with slightly worse rates
-        expectedOut = amountInFloat * 2000 * (0.96 + Math.random() * 0.03); // 2000x multiplier with 1-4% variation
-        priceImpactBps = Math.floor(Math.random() * 100); // 0-100 bps price impact
-        break;
-      case ROUTER_TYPES.SUSHISWAP:
-        // Simulate SushiSwap with competitive rates
-        expectedOut = amountInFloat * 2000 * (0.97 + Math.random() * 0.04); // 2000x multiplier with 1-5% variation
-        priceImpactBps = Math.floor(Math.random() * 80); // 0-80 bps price impact
-        break;
-      default:
-        // Default simulation
-        expectedOut = amountInFloat * 2000 * (0.95 + Math.random() * 0.05);
-        priceImpactBps = Math.floor(Math.random() * 150);
-    }
-
-    // Simulate occasional failures (10% chance)
-    if (Math.random() < 0.1) {
-      throw new Error(`Router ${routerType} temporarily unavailable`);
-    }
-
-    // Simulate liquidity issues (5% chance)
-    if (Math.random() < 0.05) {
-      throw new Error(`Insufficient liquidity on ${routerType}`);
-    }
-
-    return {
-      router: routerAddress,
-      routerType,
-      tokenIn: request.tokenIn,
-      tokenOut: request.tokenOut,
-      amountIn: request.amountIn,
-      expectedOut: expectedOut.toString(),
-      priceImpactBps,
-      gasEstimate: (21000 + Math.floor(Math.random() * 50000)).toString(), // 21k-71k gas
-      gasPrice: (20 + Math.floor(Math.random() * 30)).toString(), // 20-50 gwei
-      deadline: request.deadline || Math.floor(Date.now() / 1000) + 1200,
-    };
+  async checkHealth(): Promise<Record<string, boolean>> {
+    return await this.aggregator.checkHealth();
   }
 
   /**

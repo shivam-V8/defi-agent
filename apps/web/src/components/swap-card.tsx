@@ -2,9 +2,9 @@
 
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { TokenInRow } from './token-in-row';
-import { TokenOutRow } from './token-out-row';
-import { ChainSelect } from './chain-select';
+import { TokenInRow } from '@/components/token-in-row';
+import { TokenOutRow } from '@/components/token-out-row';
+import { ChainSelect } from '@/components/chain-select';
 import { Share, ArrowUpDown, Settings } from 'lucide-react';
 import { SwapParams } from '@/hooks/use-url-params';
 import { toast } from 'sonner';
@@ -15,9 +15,10 @@ interface SwapCardProps {
   onGetBestRoute: () => void;
   isLoading: boolean;
   chainId?: number;
+  currentStep?: 'quote' | 'simulate' | 'txParams';
 }
 
-export function SwapCard({ params, onParamsChange, onGetBestRoute, isLoading, chainId }: SwapCardProps) {
+export function SwapCard({ params, onParamsChange, onGetBestRoute, isLoading, chainId, currentStep }: SwapCardProps) {
   const swapTokens = () => {
     onParamsChange({
       tokenIn: params.tokenOut,
@@ -71,8 +72,9 @@ export function SwapCard({ params, onParamsChange, onGetBestRoute, isLoading, ch
           <TokenInRow
             token={params.tokenIn}
             amount={params.amount}
-            onTokenChange={(token) => onParamsChange({ tokenIn: token })}
-            onAmountChange={(amount) => onParamsChange({ amount })}
+            chainId={chainId}
+            onTokenChange={(token: string) => onParamsChange({ tokenIn: token })}
+            onAmountChange={(amount: string) => onParamsChange({ amount })}
           />
 
           {/* Swap Button */}
@@ -91,7 +93,8 @@ export function SwapCard({ params, onParamsChange, onGetBestRoute, isLoading, ch
           {/* Token Out Row */}
           <TokenOutRow
             token={params.tokenOut}
-            onTokenChange={(token) => onParamsChange({ tokenOut: token })}
+            chainId={chainId}
+            onTokenChange={(token: string) => onParamsChange({ tokenOut: token })}
           />
 
           {/* Chain Select */}
@@ -133,7 +136,11 @@ export function SwapCard({ params, onParamsChange, onGetBestRoute, isLoading, ch
             {isLoading ? (
               <div className="flex items-center space-x-2">
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                <span>Finding best route...</span>
+                <span>
+                  {currentStep === 'simulate' ? 'Simulating...' :
+                   currentStep === 'txParams' ? 'Preparing Transaction...' :
+                   'Finding best route...'}
+                </span>
               </div>
             ) : (
               'Swap'

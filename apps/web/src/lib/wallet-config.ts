@@ -1,10 +1,30 @@
 import { getDefaultConfig } from '@rainbow-me/rainbowkit';
 import { mainnet, arbitrum, optimism, sepolia, arbitrumSepolia, optimismSepolia } from 'wagmi/chains';
 
+// Local testnet configuration
+const localTestnet = {
+  id: 31337,
+  name: 'Local Testnet',
+  network: 'anvil',
+  nativeCurrency: {
+    decimals: 18,
+    name: 'Ethereum',
+    symbol: 'ETH',
+  },
+  rpcUrls: {
+    default: { http: ['http://localhost:8545'] },
+    public: { http: ['http://localhost:8545'] },
+  },
+  blockExplorers: {
+    default: { name: 'Local Explorer', url: 'http://localhost:8545' },
+  },
+  testnet: true,
+} as const;
+
 export const config = getDefaultConfig({
   appName: 'DeFi Agent',
   projectId: process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID || 'f327e20551427b8671f11671f2e8e358',
-  chains: [mainnet, arbitrum, optimism, sepolia, arbitrumSepolia, optimismSepolia],
+  chains: [mainnet, arbitrum, optimism, sepolia, arbitrumSepolia, optimismSepolia, localTestnet],
   ssr: true,
 });
 
@@ -39,6 +59,11 @@ export const TOKEN_ADDRESSES: Record<number, Record<string, string>> = {
   [optimismSepolia.id]: {
     USDC: '0x5fd84259d66Cd46123540766Be93DFE2F8e64564', // Placeholder - replace with actual USDC address
     WETH: '0x4200000000000000000000000000000000000006',
+  },
+  // Local Testnet (Anvil)
+  [localTestnet.id]: {
+    USDC: '0xA0b86a33E6441b8c4C8C0C4C0C4C0C4C0C4C0C4C', // Mock USDC for testing
+    WETH: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', // Mock WETH for testing
   },
 } as const;
 
@@ -89,5 +114,10 @@ export const CHAIN_METADATA = {
     name: 'Optimism Sepolia',
     symbol: 'ETH',
     logo: 'https://cryptologos.cc/logos/optimism-op-logo.png',
+  },
+  [localTestnet.id]: {
+    name: 'Local Testnet',
+    symbol: 'ETH',
+    logo: 'https://cryptologos.cc/logos/ethereum-eth-logo.png',
   },
 } as const;

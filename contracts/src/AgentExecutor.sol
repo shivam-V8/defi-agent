@@ -5,13 +5,15 @@ import {PolicyConfig} from "./PolicyConfig.sol";
 import {ChainConfig} from "./ChainConfig.sol";
 import {PermitAdapter} from "./PermitAdapter.sol";
 import {IERC20} from "forge-std/interfaces/IERC20.sol";
+import {ReentrancyGuard} from "openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
+import {Pausable} from "openzeppelin-contracts/contracts/utils/Pausable.sol";
 
 /**
  * @title AgentExecutor
  * @dev Guarded execution wrapper for DeFi swaps with Permit2 and EIP-2612 support
  * @notice Provides secure token approval management and swap execution with comprehensive validation
  */
-contract AgentExecutor {
+contract AgentExecutor is ReentrancyGuard, Pausable {
     using ChainConfig for uint256;
 
     // Events
@@ -36,6 +38,9 @@ contract AgentExecutor {
         address indexed spender
     );
 
+    event ContractPaused(address indexed account);
+    event ContractUnpaused(address indexed account);
+
     // State variables
     PolicyConfig public immutable policyConfig;
     address public immutable owner;
@@ -49,9 +54,21 @@ contract AgentExecutor {
         _;
     }
 
+
     modifier onlySupportedChain() {
         require(policyConfig.isChainSupported(block.chainid), "AgentExecutor: unsupported chain");
         _;
+    }
+
+    // Pause/Unpause functions
+    function pause() external onlyOwner {
+        _pause();
+        emit ContractPaused(msg.sender);
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
+        emit ContractUnpaused(msg.sender);
     }
 
     constructor(address _policyConfig) {
@@ -80,7 +97,7 @@ contract AgentExecutor {
         uint256 routerType,
         bytes calldata swapCalldata,
         bytes calldata permit2Data
-    ) external onlySupportedChain {
+    ) external onlySupportedChain whenNotPaused nonReentrant {
         _validateExecution(tokenIn, tokenOut, amountIn, minReceived, deadline, routerType);
         
         // Get allowed routers from PolicyConfig
@@ -135,7 +152,7 @@ contract AgentExecutor {
         uint256 routerType,
         bytes calldata swapCalldata,
         bytes calldata permit2612Data
-    ) external onlySupportedChain {
+    ) external onlySupportedChain whenNotPaused nonReentrant {
         _validateExecution(tokenIn, tokenOut, amountIn, minReceived, deadline, routerType);
         
         // Get allowed routers from PolicyConfig

@@ -2,13 +2,15 @@
 pragma solidity ^0.8.24;
 
 import {ChainConfig} from "./ChainConfig.sol";
+import {ReentrancyGuard} from "openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
+import {Pausable} from "openzeppelin-contracts/contracts/utils/Pausable.sol";
 
 /**
  * @title PolicyConfig
  * @dev On-chain source of truth for global guardrails and policy parameters
  * @notice Stores router allowlists per chain, policy parameters, and provides read-only getters
  */
-contract PolicyConfig {
+contract PolicyConfig is ReentrancyGuard, Pausable {
     using ChainConfig for uint256;
 
     // Events
@@ -60,6 +62,15 @@ contract PolicyConfig {
     modifier onlySupportedChain(uint256 chainId) {
         require(supportedChains[chainId], "PolicyConfig: unsupported chain");
         _;
+    }
+
+    // Pause/Unpause functions
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
     }
 
     constructor() {
@@ -247,7 +258,7 @@ contract PolicyConfig {
         uint256 routerType,
         address routerAddress,
         bool allowed
-    ) external onlyOwner onlySupportedChain(chainId) {
+    ) external onlyOwner onlySupportedChain(chainId) whenNotPaused nonReentrant {
         require(routerAddress != address(0), "PolicyConfig: zero address");
         require(routerType <= 10, "PolicyConfig: invalid router type"); // Reasonable limit
 
@@ -292,7 +303,7 @@ contract PolicyConfig {
      * @param chainId The chain ID
      * @param supported Whether the chain should be supported
      */
-    function setChainSupport(uint256 chainId, bool supported) external onlyOwner {
+    function setChainSupport(uint256 chainId, bool supported) external onlyOwner whenNotPaused nonReentrant {
         supportedChains[chainId] = supported;
         emit ChainSupportUpdated(chainId, supported);
     }

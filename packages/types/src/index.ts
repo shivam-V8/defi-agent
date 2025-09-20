@@ -51,6 +51,18 @@ export const ROUTER_ADDRESSES = {
   },
 } as const;
 
+// AgentExecutor contract addresses
+export const AGENT_EXECUTOR_ADDRESSES = {
+  [CHAIN_IDS.ETHEREUM]: '0x0000000000000000000000000000000000000000' as const, // Mainnet - not deployed yet
+  [CHAIN_IDS.ARBITRUM]: '0x0000000000000000000000000000000000000000' as const, // Arbitrum - not deployed yet
+  [CHAIN_IDS.OPTIMISM]: '0x0000000000000000000000000000000000000000' as const, // Optimism - not deployed yet
+  [CHAIN_IDS.SEPOLIA]: '0x0000000000000000000000000000000000000000' as const, // Sepolia - not deployed yet
+  [CHAIN_IDS.ARBITRUM_SEPOLIA]: '0x0000000000000000000000000000000000000000' as const, // Arbitrum Sepolia - not deployed yet
+  [CHAIN_IDS.OPTIMISM_SEPOLIA]: '0x0000000000000000000000000000000000000000' as const, // Optimism Sepolia - not deployed yet
+  // Local testnet (Anvil)
+  31337: '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0' as const,
+} as const;
+
 // DeFi Agent types
 export interface SwapIntent {
   chainCandidates: ChainName[];

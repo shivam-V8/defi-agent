@@ -23,6 +23,7 @@ export const QuoteRequestSchema = z.object({
   chainId: z.number().int().positive('Chain ID must be positive'),
   slippageTolerance: z.number().min(0).max(50).default(0.5), // 0.5% default
   deadline: z.number().int().positive().optional(), // Unix timestamp
+  userAddress: z.string().optional(), // User address for policy evaluation
 });
 
 // Quote response schema
@@ -46,9 +47,31 @@ export const QuoteResponseSchema = z.object({
     routerType: z.enum(Object.values(ROUTER_TYPES) as [string, ...string[]]),
     reason: z.string(),
     errorCode: z.string().optional(),
+    violations: z.array(z.string()).optional(),
   })),
   totalRoutes: z.number().int().min(0),
   processingTimeMs: z.number().int().min(0),
+  policyEvaluation: z.object({
+    passed: z.boolean(),
+    score: z.number().min(0).max(100),
+    netUSD: z.string(),
+    violations: z.array(z.object({
+      ruleId: z.string(),
+      ruleType: z.string(),
+      severity: z.string(),
+      message: z.string(),
+      actualValue: z.union([z.string(), z.number()]).optional(),
+      expectedValue: z.union([z.string(), z.number()]).optional(),
+    })),
+    warnings: z.array(z.object({
+      ruleId: z.string(),
+      ruleType: z.string(),
+      severity: z.string(),
+      message: z.string(),
+      actualValue: z.union([z.string(), z.number()]).optional(),
+      expectedValue: z.union([z.string(), z.number()]).optional(),
+    })),
+  }).optional(),
 });
 
 // Simulation request schema

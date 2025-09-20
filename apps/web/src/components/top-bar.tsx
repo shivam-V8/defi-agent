@@ -1,9 +1,9 @@
 'use client';
 
-import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { useChainId } from 'wagmi';
+import { ConnectButton, Chain } from '@rainbow-me/rainbowkit';
+import { useChainId, useSwitchChain } from 'wagmi';
 import { Button } from '@/components/ui/button';
-import { Moon, Sun, Zap } from 'lucide-react';
+import { Moon, Sun, Zap, ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 
 const CHAIN_NAMES: Record<number, string> = {
@@ -13,15 +13,25 @@ const CHAIN_NAMES: Record<number, string> = {
   11155111: 'Sepolia',
   421614: 'Arbitrum Sepolia',
   11155420: 'Optimism Sepolia',
+  31337: 'Local Testnet',
 };
 
 export function TopBar() {
   const chainId = useChainId();
+  const { switchChain } = useSwitchChain();
   const [isDark, setIsDark] = useState(false);
 
   const toggleTheme = () => {
     setIsDark(!isDark);
     // In a real app, you'd update the theme here
+  };
+
+  const handleSwitchToLocalTestnet = () => {
+    try {
+      switchChain({ chainId: 31337 });
+    } catch (error) {
+      console.error('Failed to switch to Local Testnet:', error);
+    }
   };
 
   return (
@@ -45,6 +55,16 @@ export function TopBar() {
 
           {/* Right side */}
           <div className="flex items-center space-x-3">
+            {/* Chain Selector */}
+            {chainId && chainId !== 31337 && (
+              <Button
+                onClick={handleSwitchToLocalTestnet}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
+              >
+                Switch to Local Testnet
+              </Button>
+            )}
+
             {/* Theme Toggle */}
             <Button
               variant="ghost"
