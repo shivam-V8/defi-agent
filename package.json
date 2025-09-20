@@ -5,6 +5,7 @@
   "workspaces": ["apps/*", "packages/*", "contracts"],
   "scripts": {
     "build": "turbo build",
+    "dev": "concurrently \"npm run dev:api\" \"npm run dev:web\"",
     "dev:web": "npm run dev --workspace=web",
     "dev:api": "npm run dev --workspace=api",
     "dev:worker": "npm run dev --workspace=worker",

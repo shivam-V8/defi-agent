@@ -80,6 +80,7 @@ export const SimulationRequestSchema = z.object({
   tokenOut: z.string().min(1, 'Token out address is required'),
   amountIn: z.string().regex(/^\d+(\.\d+)?$/, 'Amount must be a valid number'),
   expectedOut: z.string().regex(/^\d+(\.\d+)?$/, 'Expected out must be a valid number'),
+  minReceived: z.string().regex(/^\d+(\.\d+)?$/, 'Min received must be a valid number'),
   chainId: z.number().int().positive('Chain ID must be positive'),
   router: z.string().min(1, 'Router address is required'),
   routerType: z.enum(Object.values(ROUTER_TYPES) as [string, ...string[]]),
@@ -95,6 +96,33 @@ export const SimulationResponseSchema = z.object({
   priceImpact: z.number().optional(),
   error: z.string().optional(),
   simulationId: z.string().optional(),
+  simulationDetails: z.object({
+    logs: z.array(z.object({
+      address: z.string(),
+      topics: z.array(z.string()),
+      data: z.string(),
+    })),
+    trace: z.array(z.object({
+      type: z.string(),
+      from: z.string(),
+      to: z.string(),
+      value: z.string(),
+      gas: z.number(),
+      gas_used: z.number(),
+      input: z.string(),
+      output: z.string(),
+      error: z.string().optional(),
+    })),
+    guardChecks: z.array(z.object({
+      name: z.string(),
+      passed: z.boolean(),
+      message: z.string(),
+      actualValue: z.union([z.string(), z.number()]).optional(),
+      expectedValue: z.union([z.string(), z.number()]).optional(),
+    })),
+    warnings: z.array(z.string()),
+    simulationUrl: z.string(),
+  }).optional(),
 });
 
 // Transaction params request schema

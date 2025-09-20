@@ -82,7 +82,7 @@ app.use('*', (req, res) => {
 // Error handling middleware
 app.use(errorNormalizer);
 
-const PORT = parseInt(process.env.PORT || '4000');
+const PORT = parseInt(process.env.PORT || '3001');
 const HOST = process.env.HOST || '0.0.0.0';
 
 app.listen(PORT, HOST, () => {

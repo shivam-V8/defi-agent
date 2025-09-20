@@ -2,7 +2,7 @@
  * Security middleware for API hardening
  */
 
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import helmet from 'helmet';
 import cors from 'cors';
 import { Request, Response, NextFunction } from 'express';
@@ -19,10 +19,8 @@ export const createRateLimit = (windowMs: number = 60000, max: number = 100) => 
     },
     standardHeaders: true,
     legacyHeaders: false,
-    // Use IP address for rate limiting
-    keyGenerator: (req: Request) => {
-      return req.ip || req.connection.remoteAddress || 'unknown';
-    },
+    // Use IP address for rate limiting with IPv6 support
+    keyGenerator: ipKeyGenerator,
     // Skip rate limiting for health checks
     skip: (req: Request) => {
       return req.path === '/healthz';

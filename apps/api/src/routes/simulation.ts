@@ -20,7 +20,7 @@ router.post('/', async (req, res) => {
     });
 
     // Run simulation with timeout
-    const simulationPromise = simulationService.simulateSwap(validatedRequest);
+    const simulationPromise = simulationService.simulateTransaction(validatedRequest);
     
     const result = await Promise.race([simulationPromise, timeoutPromise]);
     
@@ -76,7 +76,7 @@ router.get('/:simulationId', async (req, res) => {
     });
 
     // Get simulation status with timeout
-    const statusPromise = simulationService.getSimulationStatus(simulationId);
+    const statusPromise = simulationService.getSimulationStats();
     
     const result = await Promise.race([statusPromise, timeoutPromise]);
     
@@ -138,7 +138,7 @@ router.post('/batch', async (req, res) => {
     });
 
     // Run all simulations in parallel
-    const simulationPromises = validatedSimulations.map(sim => simulationService.simulateSwap(sim));
+    const simulationPromises = validatedSimulations.map(sim => simulationService.simulateTransaction(sim));
     const results = await Promise.allSettled(simulationPromises);
     
     const batchResult = results.map((result, index) => ({
